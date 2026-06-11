@@ -142,7 +142,7 @@ const PROJ_SPEED = 10;
 const PROJ_LIFETIME = 2000;        // ms before projectile disappears
 
 // AI Bots
-const BOT_THINK_INTERVAL = 1500;  // ms between AI calls
+const BOT_THINK_INTERVAL = 2500;  // ms between AI calls (avoid rate limits)
 const BOT_SPEED = 3.5;
 let bots = [];
 
@@ -245,12 +245,16 @@ function startGame() {
   // Spawn bots for unchosen characters
   const taken = [false, false, false, false];
   taken[selectedChar] = true;
+  let stagger = 0;
   for (let i = 0; i < NUM_CHARS; i++) {
     if (!taken[i]) {
       bots.push(new Bot(i,
         200 + Math.random() * (worldW - 400),
         200 + Math.random() * (worldH - 400)
       ));
+      // Stagger initial think times so bots don't hit API simultaneously
+      bots[bots.length-1].lastThink = Date.now() - BOT_THINK_INTERVAL + stagger;
+      stagger += 600;
     }
   }
 
@@ -598,6 +602,7 @@ function updateBots(now) {
 
     // Think
     if (now - bot.lastThink > BOT_THINK_INTERVAL && !bot.thinking) {
+      bot.lastThink = now;
       thinkBot(bot, now);
     }
   }
@@ -653,9 +658,11 @@ async function thinkBot(bot, now) {
     if (typeof action.aim_angle === 'number') bot.aimAngle = action.aim_angle;
     bot.wantsShoot = !!action.shoot;
   } catch (e) {
-    // Server down — bot idles
-    bot.dx = 0; bot.dy = 0;
-    bot.wantsShoot = false;
+    // Server down or rate limited — move randomly, occasionally shoot
+    const angle = Math.random() * Math.PI * 2;
+    bot.dx = Math.cos(angle);
+    bot.dy = Math.sin(angle);
+    bot.wantsShoot = Math.random() < 0.2;
   }
   bot.thinking = false;
 }
