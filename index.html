@@ -98,11 +98,15 @@
 
 <script>
 // ============================================================
-// SPRITE SHEET: characters in vertical column (1024×1024, 4 rows)
+// CHARACTER ASSETS: individual images
 // ============================================================
-const CHAR_IMG = "gemini-2.5-flash-image_make_bodies_for_this_characters-0.jpg";
-const BG_IMG   = "gemini-2.5-flash-image_make_a_background_that_goes_with_the_characters-0.jpg";
-const CHAR_H   = 256; // each character height
+const CHAR_IMGS = [
+  "char-leaf.png",
+  "char-ember.png",
+  "char-frost.png",
+  "char-mystic.png"
+];
+const BG_IMG = "gemini-2.5-flash-image_make_a_background_that_goes_with_the_characters-0.jpg";
 const NUM_CHARS = 4;
 
 // Player state
@@ -113,7 +117,8 @@ let keys = {};
 let gameStarted = false;
 
 // Assets
-let charImg, bgImg;
+let charImgs = [];
+let bgImg;
 let cameraX = 0, cameraY = 0;
 let worldW = 2000, worldH = 2000;
 
@@ -141,9 +146,9 @@ for (let i = 0; i < NUM_CHARS; i++) {
   card.style.setProperty('--char-color', charColors[i]);
   card.innerHTML = `
     <div class="sprite" style="
-      background-image:url('${CHAR_IMG}');
-      background-position:0 -${i * CHAR_H}px;
-      background-size:1024px 1024px;
+      background-image:url('${CHAR_IMGS[i]}');
+      background-size:contain;
+      background-position:center;
     "></div>
     <div class="label" style="color:${charColors[i]}; font-size:1.1rem;">${charNames[i]}</div>`;
   card.addEventListener('click', () => selectCharacter(i, card));
@@ -273,20 +278,17 @@ function draw() {
   drawHouses();
 
   // Player character
-  if (charImg) {
-    const sx = 0;
-    const sy = selectedChar * CHAR_H;
-    const sw = 1024;
-    const sh = CHAR_H;
-    const pw = sw * playerScale * 0.18;
-    const ph = sh * playerScale * 0.18;
+  if (charImgs[selectedChar]) {
+    const img = charImgs[selectedChar];
+    const pw = img.width * playerScale * 0.25;
+    const ph = img.height * playerScale * 0.25;
     const px = playerX - cameraX - pw/2;
     const py = playerY - cameraY - ph/2;
 
     ctx.save();
-    ctx.shadowColor = 'rgba(255,255,255,0.3)';
-    ctx.shadowBlur = 15;
-    ctx.drawImage(charImg, sx, sy, sw, sh, px, py, pw, ph);
+    ctx.shadowColor = charColors[selectedChar] + '88';
+    ctx.shadowBlur = 20;
+    ctx.drawImage(img, px, py, pw, ph);
     ctx.restore();
 
     // Name tag
@@ -415,9 +417,8 @@ function drawMinimap() {
 // BOOT
 // ============================================================
 async function boot() {
-  [charImg, bgImg] = await Promise.all([
-    loadImage(CHAR_IMG), loadImage(BG_IMG)
-  ]);
+  charImgs = await Promise.all(CHAR_IMGS.map(loadImage));
+  bgImg = await loadImage(BG_IMG);
   if (bgImg) {
     worldW = bgImg.width * 2;
     worldH = bgImg.height * 2;
