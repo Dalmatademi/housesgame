@@ -107,12 +107,6 @@ const CHAR_IMGS = [
   "char-hipster.png"
 ];
 const BG_IMG = "gemini-2.5-flash-image_make_a_background_that_goes_with_the_characters-0.jpg";
-const BLAST_IMGS = [
-  "blast-engineer.jpg",  // Engineer
-  null,                   // Speedster (placeholder)
-  "blast-shadow.jpg",    // Shadow
-  null                    // Hipster (placeholder)
-];
 const NUM_CHARS = 4;
 
 // Player state
@@ -133,7 +127,6 @@ const PROJ_LIFETIME = 2000;        // ms before projectile disappears
 
 // Assets
 let charImgs = [];
-let blastImgs = [null, null, null, null];
 let bgImg;
 let cameraX = 0, cameraY = 0;
 let worldW = 2000, worldH = 2000;
@@ -361,31 +354,21 @@ function draw() {
   for (const p of projectiles) {
     const sx = p.x - cameraX;
     const sy = p.y - cameraY;
-    if (sx < -50 || sx > canvas.width+50 || sy < -50 || sy > canvas.height+50) continue;
+    if (sx < -20 || sx > canvas.width+20 || sy < -20 || sy > canvas.height+20) continue;
 
-    if (p.blastImg) {
-      // Blast sprite with additive blending (removes dark background)
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const bw = p.blastImg.width * 0.3;
-      const bh = p.blastImg.height * 0.3;
-      ctx.drawImage(p.blastImg, sx - bw/2, sy - bh/2, bw, bh);
-      ctx.restore();
-    } else {
-      // Fallback: colored circle
-      ctx.save();
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(sx, sy, 4, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(sx, sy, 2, 0, Math.PI*2);
-      ctx.fill();
-    }
+    ctx.save();
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2, 0, Math.PI*2);
+    ctx.fill();
   }
 
   // Minimap
@@ -423,7 +406,6 @@ function tryShoot() {
     vx: Math.cos(aimAngle) * PROJ_SPEED,
     vy: Math.sin(aimAngle) * PROJ_SPEED,
     color: charColors[selectedChar],
-    blastImg: blastImgs[selectedChar],
     born: now
   });
 }
@@ -533,10 +515,6 @@ function drawMinimap() {
 async function boot() {
   charImgs = await Promise.all(CHAR_IMGS.map(loadImage));
   bgImg = await loadImage(BG_IMG);
-  // Load blast sprites (skip null entries)
-  for (let i = 0; i < BLAST_IMGS.length; i++) {
-    if (BLAST_IMGS[i]) blastImgs[i] = await loadImage(BLAST_IMGS[i]);
-  }
   if (bgImg) {
     worldW = bgImg.width * 2;
     worldH = bgImg.height * 2;
