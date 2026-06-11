@@ -142,7 +142,7 @@ const PROJ_SPEED = 10;
 const PROJ_LIFETIME = 2000;        // ms before projectile disappears
 
 // AI Bots
-const BOT_THINK_INTERVAL = 2000;  // ms between AI calls
+const BOT_THINK_INTERVAL = 1500;  // ms between AI calls
 const BOT_SPEED = 3.5;
 let bots = [];
 
@@ -607,13 +607,38 @@ async function thinkBot(bot, now) {
   bot.thinking = true;
   bot.lastThink = now;
 
+  // Build rich game state with distances and HP
+  const dist = (a, b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2).toFixed(0);
+  const angle = (from, to) => Math.atan2(to.y-from.y, to.x-from.x);
+
+  const allEnemies = [
+    { name: charNames[selectedChar], x: playerX, y: playerY, hp: playerHP, isPlayer: true },
+    ...bots.filter(b => b !== bot).map(b => ({
+      name: b.name, x: b.x, y: b.y, hp: b.hp, isPlayer: false
+    }))
+  ];
+
+  // Sort by distance, add distance + angle
+  const enemiesWithDist = allEnemies.map(e => ({
+    ...e,
+    distance: Number(dist(bot, e)),
+    angleTo: angle(bot, e)
+  })).sort((a, b) => a.distance - b.distance);
+
   const state = {
-    bot: { name: bot.name, char: charNames[bot.charIdx], x: bot.x, y: bot.y },
-    player: { name: charNames[selectedChar], x: playerX, y: playerY },
-    enemies: bots.filter(b => b !== bot).map(b => ({
-      name: b.name, x: b.x, y: b.y, char: charNames[b.charIdx]
-    })),
-    houses: houses.map(h => ({ x: h.x, y: h.y }))
+    you: {
+      name: bot.name,
+      char: charNames[bot.charIdx],
+      hp: bot.hp,
+      maxHp: MAX_HP,
+      x: bot.x, y: bot.y
+    },
+    enemies: enemiesWithDist,
+    nearestEnemy: enemiesWithDist[0],
+    houses_nearby: houses
+      .map(h => ({ x: h.x, y: h.y, dist: Number(dist(bot, h)) }))
+      .filter(h => h.dist < 300)
+      .sort((a, b) => a.dist - b.dist)
   };
 
   try {
