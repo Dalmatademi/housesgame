@@ -125,22 +125,37 @@ const ctx = canvas.getContext('2d');
 const music = document.getElementById('bg-music');
 
 // ============================================================
+// CHARACTER DATA
+// ============================================================
+const charColors = ['#4ade80', '#f87171', '#60a5fa', '#c084fc'];
+const charNames  = ['Leaf', 'Ember', 'Frost', 'Mystic'];
+const charCSSColors = ['green', 'red', 'blue', 'purple'];
+
+// ============================================================
 // BUILD SELECTION UI
 // ============================================================
 const grid = document.getElementById('char-grid');
 for (let i = 0; i < NUM_CHARS; i++) {
   const card = document.createElement('div');
   card.className = 'char-card';
+  card.style.setProperty('--char-color', charColors[i]);
   card.innerHTML = `
     <div class="sprite" style="
       background-image:url('${CHAR_IMG}');
       background-position:0 -${i * CHAR_H}px;
       background-size:1024px 1024px;
     "></div>
-    <div class="label">Character ${i+1}</div>`;
+    <div class="label" style="color:${charColors[i]}; font-size:1.1rem;">${charNames[i]}</div>`;
   card.addEventListener('click', () => selectCharacter(i, card));
   grid.appendChild(card);
 }
+
+// Per-character hover glow
+const style = document.createElement('style');
+style.textContent = charColors.map((c,i) =>
+  `.char-card:nth-child(${i+1}):hover { border-color:${c}; box-shadow:0 20px 50px ${c}44; }`
+).join('\n');
+document.head.appendChild(style);
 
 const cards = document.querySelectorAll('.char-card');
 function selectCharacter(idx, el) {
@@ -148,7 +163,7 @@ function selectCharacter(idx, el) {
   el.classList.add('selected');
   selectedChar = idx;
   joinBtn.disabled = false;
-  joinBtn.textContent = `🎮 JOIN AS CHARACTER ${idx+1}`;
+  joinBtn.textContent = `🎮 JOIN AS ${charNames[idx].toUpperCase()}`;
 }
 
 // ============================================================
@@ -276,12 +291,13 @@ function draw() {
 
     // Name tag
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    const tagW = ctx.measureText(`Character ${selectedChar+1}`).width + 20;
+    const nameText = charNames[selectedChar];
+    const tagW = ctx.measureText(nameText).width + 20;
     ctx.fillRect(px + pw/2 - tagW/2, py - 24, tagW, 18);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = charColors[selectedChar];
     ctx.font = 'bold 12px "Segoe UI",Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(`Character ${selectedChar+1}`, px + pw/2, py - 10);
+    ctx.fillText(nameText, px + pw/2, py - 10);
   }
 
   // Minimap
@@ -293,7 +309,7 @@ function draw() {
   ctx.fillStyle = '#fff';
   ctx.font = '14px "Segoe UI",Arial';
   ctx.textAlign = 'left';
-  ctx.fillText(`🏠 Houses Game — Character ${selectedChar+1}`, 16, 26);
+  ctx.fillText(`🏠 Houses Game — ${charNames[selectedChar]}`, 16, 26);
   ctx.textAlign = 'right';
   ctx.fillText('WASD / Arrows to move', canvas.width - 16, 26);
 
