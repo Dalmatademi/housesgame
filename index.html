@@ -333,7 +333,7 @@ function update() {
 
   // Update projectiles + collisions
   const now = Date.now();
-  const HIT_RADIUS = 20;
+  const HIT_RADIUS = 35;
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.x += p.vx;
@@ -343,30 +343,32 @@ function update() {
       continue;
     }
 
-    // Collision: player gets hit by bot projectiles
-    if (p.owner === 'bot' && !gameOver) {
-      const dx = p.x - playerX;
-      const dy = p.y - playerY;
+    let hit = false;
+
+    // Check player hit (by any bot's projectile)
+    if (p.owner !== 'player' && !gameOver) {
+      const dx = p.x - playerX, dy = p.y - playerY;
       if (dx*dx + dy*dy < HIT_RADIUS*HIT_RADIUS) {
         playerHP--;
-        projectiles.splice(i, 1);
         if (playerHP <= 0) { gameOver = true; playerHP = 0; }
-        continue;
+        hit = true;
       }
     }
 
-    // Collision: bots get hit by player projectiles
-    if (p.owner === 'player') {
+    // Check bot hits (by player or other bot's projectile, not self)
+    if (!hit) {
       for (const bot of bots) {
-        const dx = p.x - bot.x;
-        const dy = p.y - bot.y;
+        if (p.owner === bot) continue; // no self-damage
+        const dx = p.x - bot.x, dy = p.y - bot.y;
         if (dx*dx + dy*dy < HIT_RADIUS*HIT_RADIUS) {
           bot.hp--;
-          projectiles.splice(i, 1);
+          hit = true;
           break;
         }
       }
     }
+
+    if (hit) projectiles.splice(i, 1);
   }
 
   // Update bots
@@ -585,7 +587,7 @@ function updateBots(now) {
         vx: Math.cos(bot.aimAngle) * PROJ_SPEED,
         vy: Math.sin(bot.aimAngle) * PROJ_SPEED,
         color: charColors[bot.charIdx],
-        owner: 'bot',
+        owner: bot,
         born: now
       });
     }
