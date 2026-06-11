@@ -92,6 +92,19 @@
 
 <canvas id="game-canvas"></canvas>
 
+<!-- GAME OVER -->
+<div id="gameover-screen" style="display:none; position:fixed; inset:0; z-index:20;
+  flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.85); color:#fff; font-family:'Segoe UI',Arial;">
+  <h1 style="font-size:4rem; color:#ef4444; text-shadow:0 0 40px #ef4444;">GAME OVER</h1>
+  <p style="font-size:1.3rem; color:#aaa; margin:10px 0;">You were defeated!</p>
+  <button onclick="location.reload()" style="margin-top:20px; padding:14px 40px;
+    font-size:1.2rem; border:none; border-radius:30px; cursor:pointer;
+    background:linear-gradient(135deg,#ff6b9d,#c44dff); color:#fff;">
+    🔄 Play Again
+  </button>
+</div>
+
 <!-- Music -->
 <audio id="bg-music" loop preload="auto"
   src="dalmat578_Celestial Arcane Pulse.mp3"></audio>
@@ -112,9 +125,12 @@ const NUM_CHARS = 4;
 // Player state
 let selectedChar = -1;
 let playerX = 400, playerY = 300;
+let playerHP = 10;
 let playerScale = 1.8;
 let keys = {};
 let gameStarted = false;
+let gameOver = false;
+const MAX_HP = 10;
 
 // Shooting
 let aimAngle = 0;                  // radians, follows mouse
@@ -142,6 +158,7 @@ class Bot {
     this.lastShot = 0;
     this.lastThink = 0;
     this.thinking = false;
+    this.hp = MAX_HP;
     this.name = charNames[charIdx] + '_Bot';
   }
 }
@@ -314,23 +331,58 @@ function update() {
   cameraX += (playerX - canvas.width/2 - cameraX) * 0.12;
   cameraY += (playerY - canvas.height/2 - cameraY) * 0.12;
 
-  // Update projectiles
+  // Update projectiles + collisions
   const now = Date.now();
+  const HIT_RADIUS = 20;
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.x += p.vx;
     p.y += p.vy;
     if (now - p.born > PROJ_LIFETIME) {
       projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Collision: player gets hit by bot projectiles
+    if (p.owner === 'bot' && !gameOver) {
+      const dx = p.x - playerX;
+      const dy = p.y - playerY;
+      if (dx*dx + dy*dy < HIT_RADIUS*HIT_RADIUS) {
+        playerHP--;
+        projectiles.splice(i, 1);
+        if (playerHP <= 0) { gameOver = true; playerHP = 0; }
+        continue;
+      }
+    }
+
+    // Collision: bots get hit by player projectiles
+    if (p.owner === 'player') {
+      for (const bot of bots) {
+        const dx = p.x - bot.x;
+        const dy = p.y - bot.y;
+        if (dx*dx + dy*dy < HIT_RADIUS*HIT_RADIUS) {
+          bot.hp--;
+          projectiles.splice(i, 1);
+          break;
+        }
+      }
     }
   }
 
   // Update bots
   updateBots(now);
+
+  // Remove dead bots
+  bots = bots.filter(b => b.hp > 0);
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (gameOver) {
+    document.getElementById('gameover-screen').style.display = 'flex';
+    // Still draw game underneath
+  }
 
   // Background
   if (bgImg) {
@@ -370,11 +422,26 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     const nameText = charNames[selectedChar];
     const tagW = ctx.measureText(nameText).width + 20;
-    ctx.fillRect(px + pw/2 - tagW/2, py - 24, tagW, 18);
+    ctx.fillRect(px + pw/2 - tagW/2, py - 30, tagW, 18);
     ctx.fillStyle = charColors[selectedChar];
     ctx.font = 'bold 12px "Segoe UI",Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(nameText, px + pw/2, py - 10);
+    ctx.fillText(nameText, px + pw/2, py - 16);
+
+    // HP bar
+    const barW = pw;
+    const barH = 5;
+    const barX = px;
+    const barY = py - 10;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(barX, barY, barW, barH);
+    const hpRatio = playerHP / MAX_HP;
+    const hpColor = hpRatio > 0.5 ? '#4ade80' : hpRatio > 0.25 ? '#facc15' : '#ef4444';
+    ctx.fillStyle = hpColor;
+    ctx.fillRect(barX, barY, barW * hpRatio, barH);
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px "Segoe UI",Arial';
+    ctx.fillText(playerHP + '/' + MAX_HP, px + pw/2, barY - 2);
   }
 
   // AI Bots
@@ -396,17 +463,29 @@ function draw() {
     // Bot name tag
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     const tagW = ctx.measureText(bot.name).width + 16;
-    ctx.fillRect(px + pw/2 - tagW/2, py - 24, tagW, 16);
+    ctx.fillRect(px + pw/2 - tagW/2, py - 30, tagW, 16);
     ctx.fillStyle = charColors[bot.charIdx];
     ctx.font = 'bold 10px "Segoe UI",Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(bot.name, px + pw/2, py - 11);
+    ctx.fillText(bot.name, px + pw/2, py - 17);
+
+    // Bot HP bar
+    const barW = pw;
+    const barH = 4;
+    const barX = px;
+    const barY = py - 10;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(barX, barY, barW, barH);
+    const hpRatio = bot.hp / MAX_HP;
+    const hpColor = hpRatio > 0.5 ? '#4ade80' : hpRatio > 0.25 ? '#facc15' : '#ef4444';
+    ctx.fillStyle = hpColor;
+    ctx.fillRect(barX, barY, barW * hpRatio, barH);
 
     // Thinking indicator
     if (bot.thinking) {
       ctx.fillStyle = '#ff0';
       ctx.font = '10px "Segoe UI",Arial';
-      ctx.fillText('...', px + pw/2, py - 28);
+      ctx.fillText('...', px + pw/2, py - 34);
     }
   }
 
@@ -478,6 +557,7 @@ function tryShoot() {
     vx: Math.cos(aimAngle) * PROJ_SPEED,
     vy: Math.sin(aimAngle) * PROJ_SPEED,
     color: charColors[selectedChar],
+    owner: 'player',
     born: now
   });
 }
@@ -505,6 +585,7 @@ function updateBots(now) {
         vx: Math.cos(bot.aimAngle) * PROJ_SPEED,
         vy: Math.sin(bot.aimAngle) * PROJ_SPEED,
         color: charColors[bot.charIdx],
+        owner: 'bot',
         born: now
       });
     }
