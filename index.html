@@ -333,7 +333,11 @@ function update() {
 
   // Update projectiles + collisions
   const now = Date.now();
-  const HIT_RADIUS = 35;
+
+  // Calculate hit radius from character size
+  const hitImg = charImgs[selectedChar] || charImgs[0];
+  const HIT_RADIUS = hitImg ? Math.max(hitImg.width, hitImg.height) * playerScale * 0.12 : 50;
+
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.x += p.vx;
