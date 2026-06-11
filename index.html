@@ -323,8 +323,8 @@ function update() {
   // Normalize diagonal
   if (dx && dy) { dx *= 0.707; dy *= 0.707; }
 
-  playerX = Math.max(30, Math.min(worldW - 30, playerX + dx));
-  playerY = Math.max(30, Math.min(worldH - 30, playerY + dy));
+  playerX = Math.max(50, Math.min(worldW - 50, playerX + dx));
+  playerY = Math.max(50, Math.min(worldH - 50, playerY + dy));
 
   // Aim towards mouse (world-space)
   const worldMX = mouseX + cameraX;
@@ -583,14 +583,20 @@ function updateBots(now) {
       thinkBot(bot, now);
     }
 
-    // Move
-    const len = Math.sqrt(bot.dx*bot.dx + bot.dy*bot.dy);
+    // Move — with wall avoidance so bots don't get stuck
+    const MARGIN = 150;
+    let mx = bot.dx, my = bot.dy;
+    if (bot.x < MARGIN) mx = 1;
+    if (bot.x > worldW - MARGIN) mx = -1;
+    if (bot.y < MARGIN) my = 1;
+    if (bot.y > worldH - MARGIN) my = -1;
+    const len = Math.sqrt(mx*mx + my*my);
     if (len > 0.001) {
-      bot.x += (bot.dx / len) * BOT_SPEED;
-      bot.y += (bot.dy / len) * BOT_SPEED;
+      bot.x += (mx / len) * BOT_SPEED;
+      bot.y += (my / len) * BOT_SPEED;
     }
-    bot.x = Math.max(30, Math.min(worldW - 30, bot.x));
-    bot.y = Math.max(30, Math.min(worldH - 30, bot.y));
+    bot.x = Math.max(50, Math.min(worldW - 50, bot.x));
+    bot.y = Math.max(50, Math.min(worldH - 50, bot.y));
 
     // Shoot toward nearest enemy using AI-set aim angle
     if (bot.wantsShoot && now - bot.lastShot > SHOOT_COOLDOWN) {
