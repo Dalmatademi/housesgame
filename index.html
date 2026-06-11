@@ -125,6 +125,27 @@ let lastShotTime = 0;
 const PROJ_SPEED = 10;
 const PROJ_LIFETIME = 2000;        // ms before projectile disappears
 
+// AI Bots
+const BOT_THINK_INTERVAL = 2000;  // ms between AI calls
+const BOT_SPEED = 3.5;
+let bots = [];
+
+class Bot {
+  constructor(charIdx, x, y) {
+    this.charIdx = charIdx;
+    this.x = x;
+    this.y = y;
+    this.dx = 0;
+    this.dy = 0;
+    this.aimAngle = 0;
+    this.wantsShoot = false;
+    this.lastShot = 0;
+    this.lastThink = 0;
+    this.thinking = false;
+    this.name = charNames[charIdx] + '_Bot';
+  }
+}
+
 // Assets
 let charImgs = [];
 let bgImg;
@@ -203,6 +224,18 @@ function startGame() {
   // Start music
   music.volume = 0.5;
   music.play().catch(() => {});
+
+  // Spawn bots for unchosen characters
+  const taken = [false, false, false, false];
+  taken[selectedChar] = true;
+  for (let i = 0; i < NUM_CHARS; i++) {
+    if (!taken[i]) {
+      bots.push(new Bot(i,
+        200 + Math.random() * (worldW - 400),
+        200 + Math.random() * (worldH - 400)
+      ));
+    }
+  }
 
   requestAnimationFrame(gameLoop);
 }
@@ -288,6 +321,9 @@ function update() {
       projectiles.splice(i, 1);
     }
   }
+
+  // Update bots
+  updateBots(now);
 }
 
 function draw() {
@@ -338,6 +374,39 @@ function draw() {
     ctx.fillText(nameText, px + pw/2, py - 10);
   }
 
+  // AI Bots
+  for (const bot of bots) {
+    if (!charImgs[bot.charIdx]) continue;
+    const img = charImgs[bot.charIdx];
+    const pw = img.width * playerScale * 0.25;
+    const ph = img.height * playerScale * 0.25;
+    const px = bot.x - cameraX - pw/2;
+    const py = bot.y - cameraY - ph/2;
+
+    ctx.save();
+    ctx.shadowColor = charColors[bot.charIdx] + '66';
+    ctx.shadowBlur = 15;
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(img, px, py, pw, ph);
+    ctx.restore();
+
+    // Bot name tag
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    const tagW = ctx.measureText(bot.name).width + 16;
+    ctx.fillRect(px + pw/2 - tagW/2, py - 24, tagW, 16);
+    ctx.fillStyle = charColors[bot.charIdx];
+    ctx.font = 'bold 10px "Segoe UI",Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(bot.name, px + pw/2, py - 11);
+
+    // Thinking indicator
+    if (bot.thinking) {
+      ctx.fillStyle = '#ff0';
+      ctx.font = '10px "Segoe UI",Arial';
+      ctx.fillText('...', px + pw/2, py - 28);
+    }
+  }
+
   // Aim indicator (line from player to cursor)
   const playerScreenX = playerX - cameraX;
   const playerScreenY = playerY - cameraY;
@@ -380,7 +449,7 @@ function draw() {
   ctx.fillStyle = '#fff';
   ctx.font = '14px "Segoe UI",Arial';
   ctx.textAlign = 'left';
-  ctx.fillText(`🏠 Houses Game — ${charNames[selectedChar]}`, 16, 26);
+  ctx.fillText(`🏠 Houses Game — ${charNames[selectedChar]}  |  🤖 ${bots.length} bots`, 16, 26);
   ctx.textAlign = 'right';
   ctx.fillText('WASD move · Mouse aim · SPACE shoot', canvas.width - 16, 26);
 
@@ -408,6 +477,72 @@ function tryShoot() {
     color: charColors[selectedChar],
     born: now
   });
+}
+
+// ============================================================
+// AI BOTS
+// ============================================================
+function updateBots(now) {
+  for (const bot of bots) {
+    // Move
+    const len = Math.sqrt(bot.dx*bot.dx + bot.dy*bot.dy);
+    if (len > 0.001) {
+      bot.x += (bot.dx / len) * BOT_SPEED;
+      bot.y += (bot.dy / len) * BOT_SPEED;
+      bot.aimAngle = Math.atan2(bot.dy, bot.dx);
+    }
+    bot.x = Math.max(30, Math.min(worldW - 30, bot.x));
+    bot.y = Math.max(30, Math.min(worldH - 30, bot.y));
+
+    // Shoot
+    if (bot.wantsShoot && now - bot.lastShot > SHOOT_COOLDOWN) {
+      bot.lastShot = now;
+      projectiles.push({
+        x: bot.x, y: bot.y,
+        vx: Math.cos(bot.aimAngle) * PROJ_SPEED,
+        vy: Math.sin(bot.aimAngle) * PROJ_SPEED,
+        color: charColors[bot.charIdx],
+        born: now
+      });
+    }
+
+    // Think
+    if (now - bot.lastThink > BOT_THINK_INTERVAL && !bot.thinking) {
+      thinkBot(bot, now);
+    }
+  }
+}
+
+async function thinkBot(bot, now) {
+  bot.thinking = true;
+  bot.lastThink = now;
+
+  const state = {
+    bot: { name: bot.name, char: charNames[bot.charIdx], x: bot.x, y: bot.y },
+    player: { name: charNames[selectedChar], x: playerX, y: playerY },
+    enemies: bots.filter(b => b !== bot).map(b => ({
+      name: b.name, x: b.x, y: b.y, char: charNames[b.charIdx]
+    })),
+    houses: houses.map(h => ({ x: h.x, y: h.y }))
+  };
+
+  try {
+    const resp = await fetch('http://localhost:8765/api/think', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state)
+    });
+    const action = await resp.json();
+    bot.dx = Number(action.dx) || 0;
+    bot.dy = Number(action.dy) || 0;
+    if (typeof action.aim_angle === 'number') bot.aimAngle = action.aim_angle;
+    bot.wantsShoot = !!action.shoot;
+  } catch (e) {
+    // Server down — bot idles
+    bot.dx = 0; bot.dy = 0;
+    bot.wantsShoot = false;
+  }
+  bot.thinking = false;
 }
 
 // ============================================================
@@ -497,6 +632,14 @@ function drawMinimap() {
     ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(mx + p.x*sc, my + p.y*sc, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Bot dots on minimap
+  for (const bot of bots) {
+    ctx.fillStyle = charColors[bot.charIdx];
+    ctx.beginPath();
+    ctx.arc(mx + bot.x*sc, my + bot.y*sc, 3, 0, Math.PI*2);
     ctx.fill();
   }
 
