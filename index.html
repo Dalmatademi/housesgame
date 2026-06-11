@@ -116,6 +116,15 @@ let playerScale = 1.8;
 let keys = {};
 let gameStarted = false;
 
+// Shooting
+let aimAngle = 0;                  // radians, follows mouse
+let mouseX = 0, mouseY = 0;        // mouse position on canvas
+let projectiles = [];
+const SHOOT_COOLDOWN = 300;        // ms between shots
+let lastShotTime = 0;
+const PROJ_SPEED = 10;
+const PROJ_LIFETIME = 2000;        // ms before projectile disappears
+
 // Assets
 let charImgs = [];
 let bgImg;
@@ -228,8 +237,19 @@ window.addEventListener('resize', () => {
 // ============================================================
 // INPUT
 // ============================================================
-window.addEventListener('keydown', e => { keys[e.key] = true; e.preventDefault(); });
-window.addEventListener('keyup',   e => { keys[e.key] = false; e.preventDefault(); });
+window.addEventListener('keydown', e => {
+  if (e.key === ' ') {
+    e.preventDefault();
+    tryShoot();
+  }
+  keys[e.key] = true;
+});
+window.addEventListener('keyup',   e => { keys[e.key] = false; });
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+});
 
 // ============================================================
 // GAME LOOP
@@ -249,9 +269,25 @@ function update() {
   playerX = Math.max(30, Math.min(worldW - 30, playerX + dx));
   playerY = Math.max(30, Math.min(worldH - 30, playerY + dy));
 
+  // Aim towards mouse (world-space)
+  const worldMX = mouseX + cameraX;
+  const worldMY = mouseY + cameraY;
+  aimAngle = Math.atan2(worldMY - playerY, worldMX - playerX);
+
   // Smooth camera
   cameraX += (playerX - canvas.width/2 - cameraX) * 0.12;
   cameraY += (playerY - canvas.height/2 - cameraY) * 0.12;
+
+  // Update projectiles
+  const now = Date.now();
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    if (now - p.born > PROJ_LIFETIME) {
+      projectiles.splice(i, 1);
+    }
+  }
 }
 
 function draw() {
@@ -302,6 +338,41 @@ function draw() {
     ctx.fillText(nameText, px + pw/2, py - 10);
   }
 
+  // Aim indicator (line from player to cursor)
+  const playerScreenX = playerX - cameraX;
+  const playerScreenY = playerY - cameraY;
+  ctx.strokeStyle = charColors[selectedChar] + '55';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 8]);
+  ctx.beginPath();
+  ctx.moveTo(playerScreenX, playerScreenY);
+  ctx.lineTo(mouseX, mouseY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Projectiles
+  for (const p of projectiles) {
+    const sx = p.x - cameraX;
+    const sy = p.y - cameraY;
+    if (sx < -20 || sx > canvas.width+20 || sy < -20 || sy > canvas.height+20) continue;
+
+    // Glow
+    ctx.save();
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 6, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // Bright core
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3, 0, Math.PI*2);
+    ctx.fill();
+  }
+
   // Minimap
   drawMinimap();
 
@@ -313,13 +384,32 @@ function draw() {
   ctx.textAlign = 'left';
   ctx.fillText(`🏠 Houses Game — ${charNames[selectedChar]}`, 16, 26);
   ctx.textAlign = 'right';
-  ctx.fillText('WASD / Arrows to move', canvas.width - 16, 26);
+  ctx.fillText('WASD move · Mouse aim · SPACE shoot', canvas.width - 16, 26);
 
   // Join instruction if other players (placeholder)
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.font = '13px "Segoe UI",Arial';
   ctx.fillText('More players can join by opening this page!', canvas.width/2, canvas.height - 12);
+}
+
+// ============================================================
+// SHOOTING
+// ============================================================
+function tryShoot() {
+  if (!gameStarted || selectedChar < 0) return;
+  const now = Date.now();
+  if (now - lastShotTime < SHOOT_COOLDOWN) return;
+  lastShotTime = now;
+
+  projectiles.push({
+    x: playerX,
+    y: playerY,
+    vx: Math.cos(aimAngle) * PROJ_SPEED,
+    vy: Math.sin(aimAngle) * PROJ_SPEED,
+    color: charColors[selectedChar],
+    born: now
+  });
 }
 
 // ============================================================
@@ -396,13 +486,21 @@ function drawMinimap() {
   }
 
   // Player dot
-  ctx.fillStyle = '#ff6b9d';
+  ctx.fillStyle = charColors[selectedChar];
   ctx.beginPath();
   ctx.arc(mx + playerX*sc, my + playerY*sc, 4, 0, Math.PI*2);
   ctx.fill();
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 1;
   ctx.stroke();
+
+  // Projectile dots on minimap
+  for (const p of projectiles) {
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(mx + p.x*sc, my + p.y*sc, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
 
   // Camera viewport
   ctx.strokeStyle = '#fff';
