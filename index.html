@@ -283,6 +283,9 @@ canvas.addEventListener('mousemove', e => {
   mouseX = e.clientX - rect.left;
   mouseY = e.clientY - rect.top;
 });
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 0 && gameStarted) tryShoot();
+});
 
 // ============================================================
 // GAME LOOP
@@ -451,7 +454,7 @@ function draw() {
   ctx.textAlign = 'left';
   ctx.fillText(`🏠 Houses Game — ${charNames[selectedChar]}  |  🤖 ${bots.length} bots`, 16, 26);
   ctx.textAlign = 'right';
-  ctx.fillText('WASD move · Mouse aim · SPACE shoot', canvas.width - 16, 26);
+  ctx.fillText('WASD move · Mouse aim · Left-click shoot', canvas.width - 16, 26);
 
   // Join instruction if other players (placeholder)
   ctx.textAlign = 'center';
