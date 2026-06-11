@@ -110,7 +110,7 @@ const BG_IMG = "gemini-2.5-flash-image_make_a_background_that_goes_with_the_char
 const BLAST_IMGS = [
   "blast-engineer.jpg",  // Engineer
   null,                   // Speedster (placeholder)
-  null,                   // Shadow (placeholder)
+  "blast-shadow.jpg",    // Shadow
   null                    // Hipster (placeholder)
 ];
 const NUM_CHARS = 4;
@@ -367,8 +367,8 @@ function draw() {
       // Blast sprite with additive blending (removes dark background)
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      const bw = p.blastImg.width * 0.5;
-      const bh = p.blastImg.height * 0.5;
+      const bw = p.blastImg.width * 0.3;
+      const bh = p.blastImg.height * 0.3;
       ctx.drawImage(p.blastImg, sx - bw/2, sy - bh/2, bw, bh);
       ctx.restore();
     } else {
@@ -378,12 +378,12 @@ function draw() {
       ctx.shadowBlur = 12;
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(sx, sy, 6, 0, Math.PI*2);
+      ctx.arc(sx, sy, 4, 0, Math.PI*2);
       ctx.fill();
       ctx.restore();
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(sx, sy, 3, 0, Math.PI*2);
+      ctx.arc(sx, sy, 2, 0, Math.PI*2);
       ctx.fill();
     }
   }
